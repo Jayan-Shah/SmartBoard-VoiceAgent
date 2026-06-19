@@ -7,7 +7,12 @@
 
 A low-latency, dual-screen AI Teaching Assistant designed for government schools. It allows teachers to navigate lessons, simplify concepts into conversational Hinglish, and generate interactive quizzes completely hands-free.
 
-*(Please replace this line with a screenshot or GIF showing the Smart Board and Teacher Panel side-by-side!)*
+### 📚 Explanation Mode (Side-by-Side)
+<img width="1680" height="982" alt="Screenshot 2026-06-19 at 6 36 46 PM" src="https://github.com/user-attachments/assets/c4258be5-1491-4708-a204-86dc951122d0" />
+
+### 📝 Quiz Mode & Teacher Answer Key
+<img width="1679" height="876" alt="Screenshot 2026-06-19 at 6 38 58 PM" src="https://github.com/user-attachments/assets/6748b9f3-99c3-4de6-a781-132e9ccb6dca" />
+
 
 ---
 
