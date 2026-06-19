@@ -13,7 +13,27 @@ load_dotenv()
 # 2. UI Configuration
 st.set_page_config(page_title="AI Teaching Assistant", page_icon="🏫", layout="wide")
 
-STATE_FILE = "shared_classroom_state.json"
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+STATE_FILE = os.path.join(BASE_DIR, "shared_classroom_state.json")
+
+# --- AUTO-RESET ON SERVER START (NOT ON NEW TAB) ---
+@st.cache_resource
+def initialize_server_state():
+    default_state = {
+        "mode": "explanation", 
+        "visual_display": "👋 Welcome! Say 'Assistant' to begin.",
+        "quiz_data": [],       
+        "quiz_index": 0        
+    }
+    with open(STATE_FILE, "w") as f:
+        json.dump(default_state, f)
+    return True
+
+# This runs exactly ONCE when you start the Streamlit server.
+# Opening a new tab (like the student view) will no longer wipe listener.py's work!
+initialize_server_state()
+
+# STATE_FILE = "shared_classroom_state.json"
 
 def load_shared_state():
     default_state = {

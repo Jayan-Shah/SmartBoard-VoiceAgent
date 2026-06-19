@@ -1,69 +1,81 @@
-import speech_recognition as sr
-import json
 import os
-from dotenv import load_dotenv
-
-# Import our existing AI logic!
+import json
+import speech_recognition as sr
 from modules.audio_processor import transcribe_audio
 from modules.llm_engine import generate_smartboard_content
 
-load_dotenv()
-STATE_FILE = "shared_classroom_state.json"
+# --- ABSOLUTE PATH SETUP ---
+# Guarantees it writes to the exact same file app.py is reading
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+STATE_FILE = os.path.join(BASE_DIR, "shared_classroom_state.json")
+TEMP_AUDIO_FILE = os.path.join(BASE_DIR, "lapel_temp.wav")
 
-def save_shared_state(display_text, answer):
-    """Writes the AI output to the file so Streamlit can read it."""
-    with open(STATE_FILE, "w") as f:
-        json.dump({"visual_display": display_text, "quiz_answer": answer}, f)
-    print("✅ Smart Board Updated Successfully!")
-
-def start_lapel_listener():
+def start_listening():
     recognizer = sr.Recognizer()
-    mic = sr.Microphone()
+    
+    # Optional: Tweaking these helps with background classroom noise
+    recognizer.energy_threshold = 300 
+    recognizer.dynamic_energy_threshold = True
 
-    print("\n🎤 Initializing Bluetooth Lapel Mic...")
-    with mic as source:
-        # Calibrate for classroom background noise for 2 seconds
+    with sr.Microphone() as source:
+        print("Initializing Bluetooth Lapel Mic...")
         recognizer.adjust_for_ambient_noise(source, duration=2)
-        print("🎧 Calibration complete. Listening for wake word 'Assistant'...\n")
+        print("Calibration complete. Listening for wake word 'Assistant'...\n")
 
-    # Infinite loop to keep the microphone open
-    while True:
-        try:
-            with mic as source:
-                # Listen for speech. Timeout prevents it from hanging forever.
-                audio = recognizer.listen(source, timeout=5, phrase_time_limit=10)
-            
-            print("⏳ Speech detected! Processing...")
-            
-            # Save the captured audio to a temporary file
-            file_path = "lapel_temp.wav"
-            with open(file_path, "wb") as f:
-                f.write(audio.get_wav_data())
-            
-            # Send to Groq Whisper
-            transcript = transcribe_audio(file_path)
-            
-            if "assistant" not in transcript.lower():
-                print(f"🚫 Ignored (No wake word): {transcript}")
+        while True:
+            try:
+                # Listen for audio (phrase_time_limit prevents it from recording forever if it gets stuck)
+                audio = recognizer.listen(source, timeout=None, phrase_time_limit=15)
+                print("🎤 Speech detected! Processing...")
+
+                # Save the audio bytes to our temporary file for Groq to read
+                with open(TEMP_AUDIO_FILE, "wb") as f:
+                    f.write(audio.get_wav_data())
+
+                # Send to Groq for ultra-fast transcription
+                transcript = transcribe_audio(TEMP_AUDIO_FILE)
+
+                # Check for the Wake Word
+                if transcript and "assistant" in transcript.lower():
+                    print(f"✅ Command Accepted: {transcript.strip()}")
+                    
+                    # Pass the command to Gemini
+                    ai_output = generate_smartboard_content(transcript)
+
+                    # Clean out any accidental markdown from the LLM
+                    clean_output = ai_output.replace("```json", "").replace("```", "").strip()
+
+                    # --- SMART ROUTER ---
+                    try:
+                        # Try to parse it as a Quiz
+                        quiz_json = json.loads(clean_output)
+                        if isinstance(quiz_json, list):
+                            new_state = {
+                                "mode": "quiz",
+                                "visual_display": "",
+                                "quiz_data": quiz_json,
+                                "quiz_index": 0
+                            }
+                    except json.JSONDecodeError:
+                        # If JSON parsing fails, treat it as a standard text explanation
+                        new_state = {
+                            "mode": "explanation",
+                            "visual_display": ai_output,
+                            "quiz_data": [],
+                            "quiz_index": 0
+                        }
+
+                    # Safely write the new state to the shared file
+                    with open(STATE_FILE, "w") as f:
+                        json.dump(new_state, f)
+                        
+                    print("✅ Smart Board Updated Successfully!\n")
+                    print("Listening for wake word 'Assistant'...")
+
+            except sr.WaitTimeoutError:
                 continue
-                
-            print(f"🎯 Command Accepted: {transcript}")
-            
-            # Send to Groq Llama 3
-            ai_output = generate_smartboard_content(transcript)
-            
-            # Parse the output
-            if "Correct Answer:" in ai_output:
-                clean_display, answer_part = ai_output.split("Correct Answer:", 1)
-                save_shared_state(clean_display.strip(), answer_part.strip())
-            else:
-                save_shared_state(ai_output, None)
-
-        except sr.WaitTimeoutError:
-            # Just loops back and keeps listening if no one speaks
-            continue
-        except Exception as e:
-            print(f"⚠️ Error: {e}")
+            except Exception as e:
+                print(f"⚠️ Error processing audio: {e}")
 
 if __name__ == "__main__":
-    start_lapel_listener()
+    start_listening()
