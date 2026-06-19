@@ -1,0 +1,17 @@
+# Environments
+venv/
+env/
+.env
+
+# Python artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Mac OS artifacts
+.DS_Store
+
+# Local state files (Optional, but good practice so your local state doesn't overwrite the deployed state)
+shared_classroom_state.json
+lapel_temp.wav
+temp_audio.wav
